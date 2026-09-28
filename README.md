@@ -2,6 +2,40 @@
 
 pi-humanlayer is a [pi](https://github.com/earendil-works/pi) extension that mirrors your pi sessions to HumanLayer, where you can read them in the web app. At a session's first prompt it creates or joins a HumanLayer task and starts a cloud session in it. From then on it sends each entry pi saves, the files the model writes to the task folder, and the repo's diff. It runs inside pi with no daemon. Messages and the stop button in the web app reach pi, and the model gets HumanLayer's comment tools and skills.
 
+## Install
+
+You need:
+
+- pi 0.87 or newer with a model set up. To get pi, run `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`, then `/login` inside pi.
+- Node 22.19 or newer, and git.
+- Read access to the private GitHub repo `humanlayer/humanlayer-pi`.
+
+Install with SSH:
+
+```bash
+pi install git:git@github.com:humanlayer/humanlayer-pi
+```
+
+Or with HTTPS, if you sign in to GitHub with the `gh` CLI rather than an SSH key:
+
+```bash
+gh auth setup-git
+pi install git:github.com/humanlayer/humanlayer-pi
+```
+
+`pi list` should now show the package. Then start pi in a git repo:
+
+```text
+pi
+/humanlayer login      # approve in the browser
+<your prompt>          # the first prompt links the session to HumanLayer
+/humanlayer status     # shows the session's web app link
+```
+
+To update, run `pi update --extensions`. To remove, run `pi remove` with the source you installed, such as `pi remove git:git@github.com:humanlayer/humanlayer-pi`.
+
+The rest of this file is reference.
+
 ## What it sends
 
 - **Session events:** your prompts, the model's replies and thinking, tool calls and results, your own `!` and `!!` shell commands with their output, and compaction summaries. Other entries (model changes, labels, branch summaries, other extensions' custom entries) go as hidden events that hold the whole entry. Images go as `[image]`.
@@ -26,17 +60,6 @@ pi-humanlayer is a [pi](https://github.com/earendil-works/pi) extension that mir
 - **Skills.** If the HumanLayer app has installed its `riptide-rpi` and `riptide-humanlayer` plugins under `~/.humanlayer/riptide/plugins/`, pi offers their skills, newest version only: `/skill:create-plan` and the rest.
 
 `HUMANLAYER_PI_DISABLE=1` is not the same as `off`: a session bound earlier sends what it missed the next time it runs with the extension on.
-
-## Install
-
-```bash
-pi install /path/to/synclayer/apps/riptide-pi-extension  # loads from that folder, no copy
-pi -e /path/to/synclayer/apps/riptide-pi-extension       # this run only
-pi install git:github.com/<owner>/pi-humanlayer   # once the repo has a remote
-pi remove /path/to/synclayer/apps/riptide-pi-extension
-```
-
-Needs pi 0.87 or newer (built and tested on 0.87.1), Node 22.19.0 or newer (pi's own floor), and `git` on your PATH for repo facts and diffs. The extension has no runtime dependencies, so running it needs no `bun install`.
 
 ## Sign in
 
@@ -176,12 +199,16 @@ In print and JSON modes, this extension also handles SIGINT (Ctrl+C) while mirro
 
 ## Develop
 
+The source lives in `apps/riptide-pi-extension` in `humanlayer/synclayer`. `humanlayer/humanlayer-pi` is a copy for preview installs; see [DISTRIBUTING.md](DISTRIBUTING.md). Below, `/path/to/pi-humanlayer` means either folder.
+
 ```bash
 bun install
 bun run check   # tsc --noEmit, then node --test "test/**/*.test.ts"
+pi -e /path/to/pi-humanlayer        # load a local copy for one run
+pi install /path/to/pi-humanlayer   # or for every run, from that folder with no copy
 ```
 
-The tests use Node's own test runner, a faux model and an in-process mock cloud, so they need no internet access or API keys.
+The extension has no runtime dependencies: pi supplies the `@earendil-works` packages it imports. The tests use Node's own test runner, a faux model and an in-process mock cloud, so they need no internet access or API keys.
 
 ### Mock cloud
 
@@ -210,7 +237,7 @@ export HUMANLAYER_API_URL=http://127.0.0.1:8799 HUMANLAYER_WORKOS_URL=http://127
 export HUMANLAYER_SYNC_URL=http://127.0.0.1:8800
 export HUMANLAYER_PAT=hl-pat-mock   # or leave it out and run /humanlayer login local
 export HUMANLAYER_PI_NO_BROWSER=1   # the mock's device page does not load
-pi -ne -e /path/to/synclayer/apps/riptide-pi-extension
+pi -ne -e /path/to/pi-humanlayer
 ```
 
 `-ne` stops an installed copy from loading as well. The mock approves a login without the browser. To keep test sessions out of `~/.pi/agent`, set `PI_CODING_AGENT_DIR` to a temp folder with a model set up.
@@ -252,7 +279,7 @@ pi -ne -e /path/to/synclayer/apps/riptide-pi-extension
 In a git repo with at least one commit, and with a model set up in pi:
 
 ```bash
-pi install /path/to/synclayer/apps/riptide-pi-extension
+pi install /path/to/pi-humanlayer
 HUMANLAYER_CHANNEL=dev pi
 # in pi:
 /humanlayer login dev      # approve in the browser
@@ -262,4 +289,4 @@ Create hello.txt with "hi", then reply done.
 
 The web app should show the prompt, the write call and the reply, with the session ending ready for input. The task's diff should list `hello.txt` as added.
 
-The login saves `dev` as the default channel, so from then on every pi session mirrors to dev, headless runs (`pi -p`) included, even without `HUMANLAYER_CHANNEL`. `/humanlayer login prod` moves the default back; `/humanlayer logout` or `pi remove /path/to/synclayer/apps/riptide-pi-extension` stops mirroring.
+The login saves `dev` as the default channel, so from then on every pi session mirrors to dev, headless runs (`pi -p`) included, even without `HUMANLAYER_CHANNEL`. `/humanlayer login prod` moves the default back; `/humanlayer logout` or `pi remove /path/to/pi-humanlayer` stops mirroring.

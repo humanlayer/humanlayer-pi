@@ -1,0 +1,39 @@
+{
+	"name": "@humanlayer/pi-humanlayer",
+	"version": "0.1.0",
+	"description": "Mirror pi coding agent sessions, artifacts and diffs to HumanLayer",
+	"private": true,
+	"type": "module",
+	"keywords": [
+		"pi-package"
+	],
+	"pi": {
+		"extensions": [
+			"./src/pi-humanlayer.ts"
+		]
+	},
+	"files": [
+		"src",
+		"README.md"
+	],
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"scripts": {
+		"test": "node --test \"test/**/*.test.ts\"",
+		"typecheck": "tsc --noEmit",
+		"check": "bun run typecheck && bun run test",
+		"mock-cloud": "node test/mock-cloud/server.ts"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-ai": "0.87.1",
+		"@earendil-works/pi-coding-agent": "0.87.1",
+		"@types/node": "^24.0.0",
+		"typescript": "^5.9.0",
+		"zod": "4.5.4"
+	}
+}

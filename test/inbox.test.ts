@@ -209,7 +209,7 @@ test('a bound session reports its skills to the web composer, for its agent and 
 		scope: 'plugin',
 	})
 	assert.ok(
-		skills.some((skill) => skill.name === 'skill:create-plan'),
+		skills.some((skill) => skill.name === 'skill:create-research'),
 		'the bundled rpi skills',
 	)
 })

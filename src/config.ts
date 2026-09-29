@@ -99,11 +99,6 @@ export function bindingsDir(channel: Channel): string {
 	return join(piDir(), 'bindings', channel)
 }
 
-/** Plugins the riptide daemon installs, one directory per version: `<plugin>/<version>/`. */
-export function pluginsDir(): string {
-	return join(riptideHome(), 'plugins')
-}
-
 /** A task's files, shared with the riptide daemon. `<cwd>/.humanlayer/tasks/<slug>` links here. */
 export function artifactsDir(taskId: string): string {
 	return join(riptideHome(), 'artifacts', taskId)

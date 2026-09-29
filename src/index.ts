@@ -9,7 +9,7 @@ import { getPat } from './auth.ts'
 import { Mirror, type MirrorOptions, type PiDriver } from './capture.ts'
 import { createHumanlayerCommand, humanlayerArgumentCompletions, type Instance, setLive } from './command.ts'
 import { flushMs, isDisabled, log } from './config.ts'
-import { pluginSkillPaths } from './skills.ts'
+import { bundledSkillPaths } from './skills.ts'
 import { registerHumanlayerTools, syncTools } from './tools.ts'
 import { errorMessage } from './util.ts'
 
@@ -108,7 +108,7 @@ export function createHumanlayer(opts: MirrorOptions = {}): (pi: ExtensionAPI) =
 
 		pi.on('resources_discover', () => {
 			try {
-				return { skillPaths: pluginSkillPaths() }
+				return { skillPaths: bundledSkillPaths() }
 			} catch (err) {
 				log(`resources_discover: ${errorMessage(err)}`)
 				return undefined

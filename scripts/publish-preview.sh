@@ -19,6 +19,15 @@ git clone -q "$repo" "$out"
 git -C "$out" rm -rq --ignore-unmatch .
 git -C "$root" archive "HEAD:${prefix%/}" | tar -x -C "$out"
 
+# The skills ship in skills/, copied from the plugin sources as committed (the paths in
+# src/skills.ts). -L copies the files that their links to other plugins point at.
+src="$(mktemp -d)"
+trap 'rm -rf "$out" "$src"' EXIT
+git -C "$root" archive HEAD apps/riptide-rpi-claude-plugin/skills apps/riptide-humanlayer-claude-plugin/skills | tar -x -C "$src"
+mkdir -p "$out/skills"
+cp -RL "$src/apps/riptide-rpi-claude-plugin/skills" "$out/skills/rpi"
+cp -RL "$src/apps/riptide-humanlayer-claude-plugin/skills" "$out/skills/humanlayer"
+
 # The monorepo's `catalog:` versions mean nothing outside it; npm needs real ones.
 node -e '
 const fs = require("node:fs")

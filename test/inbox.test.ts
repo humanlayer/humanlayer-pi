@@ -2,7 +2,7 @@
 // riptide-daemon does, runs a web reply as its next prompt, and stops on the web stop button.
 
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -192,50 +192,44 @@ function reports(cloud: MockCloud): RecordedRequest[] {
 	return cloud.requests.filter((r) => r.path === '/rpc/daemon/v1/agentCommands/report')
 }
 
-/** Installs a riptide-rpi plugin with one skill, `greet`, where the extension looks for plugins. */
-function installGreetSkill(home: string): void {
-	const dir = join(home, 'plugins', 'riptide-rpi', '1.0.0', 'skills', 'greet')
-	mkdirSync(dir, { recursive: true })
-	writeFileSync(
-		join(dir, 'SKILL.md'),
-		'---\nname: greet\ndescription: Greets someone\n---\n\nSay hello to the named person.\n',
-	)
-}
-
 test('a bound session reports its skills to the web composer, for its agent and folder', async (t) => {
 	const env = await setUp(t)
-	installGreetSkill(env.home)
 	const { s } = await bound(env)
 	await waitFor('the skills report', () => reports(env.cloud).length === 1)
 
 	const [report] = reports(env.cloud)
 	assert.equal(report?.status, 200)
-	assert.deepEqual(report?.body, {
-		hostId: env.cloud.sessions()[0]?.hostId,
-		agent: 'pi',
-		workspacePath: s.cwd,
-		commands: [],
-		skills: [{ name: 'skill:greet', description: 'Greets someone', scope: 'plugin' }],
+	const { skills, ...rest } = report?.body as { skills: { name: string; scope: string }[] }
+	assert.deepEqual(rest, { hostId: env.cloud.sessions()[0]?.hostId, agent: 'pi', workspacePath: s.cwd, commands: [] })
+	const showMe = skills.find((skill) => skill.name === 'skill:show-me')
+	assert.deepEqual(showMe, {
+		name: 'skill:show-me',
+		description:
+			'Help the user understand the current topic visually with concise diagrams, code-shape sketches, and focused HTML artifacts.',
+		scope: 'plugin',
 	})
+	assert.ok(
+		skills.some((skill) => skill.name === 'skill:create-plan'),
+		'the bundled rpi skills',
+	)
 })
 
 test('a web `/skill:name` message runs the skill, and its user message is not sent twice', async (t) => {
 	const env = await setUp(t)
-	installGreetSkill(env.home)
 	const { cloud } = env
 	const { s, id } = await bound(env)
 	s.faux.setResponses([fauxAssistantMessage('hello, Ada')])
 
-	cloud.continueSession(id, '/skill:greet Ada')
+	cloud.continueSession(id, '/skill:show-me Ada')
 	await waitFor('the answer', () => cloud.events(id).some((e) => String(e.content).includes('hello, Ada')))
 	await waitFor('ready_for_input', () => cloud.statuses(id).at(-1) === 'ready_for_input')
 
 	const sent = s.session.messages.filter((m) => m.role === 'user').at(-1)
 	const parts = typeof sent?.content === 'string' ? [{ type: 'text', text: sent.content }] : (sent?.content ?? [])
 	const text = parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
-	assert.match(text, /^<skill name="greet" /, 'pi expanded the skill')
+	assert.match(text, /^<skill name="show-me" /, 'pi expanded the skill')
 	assert.match(text, /\n\nAda$/)
-	assert.deepEqual(userMessages(cloud, id), ['hello', '/skill:greet Ada'])
+	assert.deepEqual(userMessages(cloud, id), ['hello', '/skill:show-me Ada'])
 })
 
 test('the mapper drops a web prompt once, and sends a typed message with the same text', () => {

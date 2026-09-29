@@ -1,24 +1,25 @@
-// src/skills.ts: picks the newest version of each riptide plugin and returns its skills dir.
+// src/skills.ts: finds the bundled plugin skills in a published copy, else in the synclayer sources.
 
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { pathToFileURL } from 'node:url'
 
-import { latestVersion, pluginSkillPaths } from '../src/skills.ts'
+import { bundledSkillPaths } from '../src/skills.ts'
 
-test('latestVersion compares numerically and skips temp dirs', () => {
-	const root = mkdtempSync(join(tmpdir(), 'pi-hl-skills-'))
-	for (const name of ['0.9.0', '0.41.2', '0.41.10', '.riptide-rpi-temp-abc']) mkdirSync(join(root, name))
-	assert.equal(latestVersion(root), '0.41.10')
-	assert.equal(latestVersion(join(root, 'missing')), undefined)
+test('in synclayer, the skills come from both plugin sources', () => {
+	const paths = bundledSkillPaths()
+	assert.equal(paths.length, 2)
+	assert.ok(existsSync(join(paths[0] ?? '', 'create-plan', 'SKILL.md')))
+	assert.ok(existsSync(join(paths[1] ?? '', 'show-me', 'SKILL.md')))
 })
 
-test('pluginSkillPaths returns skills dirs for installed plugins only', () => {
+test('a published copy uses its own skills folder, and skips a plugin it lacks', () => {
 	const root = mkdtempSync(join(tmpdir(), 'pi-hl-skills-'))
-	mkdirSync(join(root, 'riptide-rpi', '0.40.0', 'skills'), { recursive: true })
-	mkdirSync(join(root, 'riptide-rpi', '0.41.2', 'skills'), { recursive: true })
-	mkdirSync(join(root, 'riptide-humanlayer', '0.1.3'), { recursive: true })
-	assert.deepEqual(pluginSkillPaths(root), [join(root, 'riptide-rpi', '0.41.2', 'skills')])
+	const pkg = join(root, 'pkg')
+	mkdirSync(join(pkg, 'skills', 'rpi'), { recursive: true })
+	mkdirSync(join(root, 'riptide-rpi-claude-plugin', 'skills'), { recursive: true })
+	assert.deepEqual(bundledSkillPaths(pathToFileURL(`${pkg}/`)), [join(pkg, 'skills', 'rpi')])
 })

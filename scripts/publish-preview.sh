@@ -45,7 +45,8 @@ for (const deps of [pkg.dependencies, pkg.devDependencies, pkg.peerDependencies]
 fs.writeFileSync(file, JSON.stringify(pkg, null, "\t") + "\n")
 ' "$out/package.json" "$root/package.json"
 
-git -C "$out" add -A
+# -f: everything here came from git, and a global ignore (such as `rpi/`) must not drop any of it.
+git -C "$out" add -A -f
 if git -C "$out" diff --cached --quiet; then
 	echo "preview repo already matches $sha"
 	exit 0

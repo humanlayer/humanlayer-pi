@@ -1,22 +1,6 @@
 # Distributing the preview
 
-Previewers install from the private repo `humanlayer/humanlayer-pi` with their own GitHub login, so each one needs read access. The source stays in `apps/riptide-pi-extension` in `humanlayer/synclayer`; the preview repo is a copy.
-
-## Give someone access
-
-```bash
-gh api -X PUT repos/humanlayer/humanlayer-pi/collaborators/<github-user> -f permission=pull
-```
-
-GitHub emails them an invite. `pi install` fails until they accept it. Then send them the install steps: https://github.com/humanlayer/humanlayer-pi#install
-
-```bash
-gh api repos/humanlayer/humanlayer-pi/collaborators --jq '.[].login'   # who has access
-gh api repos/humanlayer/humanlayer-pi/invitations --jq '.[].invitee.login'   # who has not accepted
-gh api -X DELETE repos/humanlayer/humanlayer-pi/collaborators/<github-user>   # take access away
-```
-
-For a larger group, add a GitHub team to the repo with read access instead.
+Previewers install from the public repo `humanlayer/humanlayer-pi`; send them the install steps: https://github.com/humanlayer/humanlayer-pi#install. The source stays in `apps/riptide-pi-extension` in `humanlayer/synclayer`; the preview repo is a copy.
 
 ## Publish a change
 
@@ -33,7 +17,7 @@ Don't edit the preview repo by hand: the next publish replaces its files.
 
 ## Pin a build
 
-Previewers who install without a ref follow `main`. To hold someone on a known build, tag it in the preview repo and have them install `git:git@github.com:humanlayer/humanlayer-pi@<tag>`. pi never moves a pinned ref on update; they reinstall to change it.
+Previewers who install without a ref follow `main`. To hold someone on a known build, tag it in the preview repo and have them install `git:github.com/humanlayer/humanlayer-pi@<tag>`. pi never moves a pinned ref on update; they reinstall to change it.
 
 ## Server support
 

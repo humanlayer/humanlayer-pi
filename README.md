@@ -8,18 +8,8 @@ You need:
 
 - pi 0.87 or newer with a model set up. To get pi, run `npm install -g --ignore-scripts @earendil-works/pi-coding-agent`, then `/login` inside pi.
 - Node 22.19 or newer, and git.
-- Read access to the private GitHub repo `humanlayer/humanlayer-pi`.
-
-Install with SSH:
 
 ```bash
-pi install git:git@github.com:humanlayer/humanlayer-pi
-```
-
-Or with HTTPS, if you sign in to GitHub with the `gh` CLI rather than an SSH key:
-
-```bash
-gh auth setup-git
 pi install git:github.com/humanlayer/humanlayer-pi
 ```
 
@@ -34,7 +24,7 @@ pi
 
 **Note:** if you use the HumanLayer beta environment, sign in with `/humanlayer login beta`. pi remembers it for later sessions.
 
-To update, run `pi update --extensions`. To remove, run `pi remove` with the source you installed, such as `pi remove git:git@github.com:humanlayer/humanlayer-pi`.
+To update, run `pi update --extensions`. To remove, run `pi remove git:github.com/humanlayer/humanlayer-pi`.
 
 The rest of this file is reference.
 

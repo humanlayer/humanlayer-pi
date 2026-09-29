@@ -59,7 +59,7 @@ The rest of this file is reference.
 - **Web messages.** A message typed in the web app starts a turn, or waits as a follow-up while one runs. The stop button aborts the turn. The web composer offers the session's skills as slash commands, and `/skill:name args` runs the skill as it would in the terminal. `/compact` runs as pi's command; anything else goes in as typed. Only the TUI and RPC modes take web messages; print and JSON runs ignore them.
 - **Host status.** While a session is bound, the extension beats every 15 s, so the web app shows the host online and its composer works. The host offers no launches: the web app can't start a pi session.
 - **Tools.** While bound, the model has the tools HumanLayer's own agents get, with the same names and output: `get_artifact_comments`, `update_artifact_comments`, `reply_to_artifact_comment`, `get_diff_comments`, `reply_to_diff_comment`, `update_diff_comments` and `library_researcher`. They act on the bound task and turn off with `/humanlayer off`.
-- **Skills.** HumanLayer's own skills ship with the extension, so pi offers `/skill:create-research`, `/skill:show-me` and the rest with nothing else installed. It leaves out `create-plan` and `iterate-plan`.
+- **Skills.** The extension ships its own copy of HumanLayer's rpi skills in `skills/`, so pi offers `/skill:create-research`, `/skill:create-tech-design`, `/skill:show-me` and the rest with nothing else installed. The copy is pi's own: edit it in `skills/`, not in the plugin sources.
 
 `HUMANLAYER_PI_DISABLE=1` is not the same as `off`: a session bound earlier sends what it missed the next time it runs with the extension on.
 
@@ -264,7 +264,7 @@ pi -ne -e /path/to/pi-humanlayer
 | `src/heartbeat.ts` | Lane: the host heartbeat |
 | `src/inbox.ts` | Lane: follows the session row for web messages and stops, and reports the session's skills to the web composer |
 | `src/tools.ts` | The HumanLayer tools |
-| `src/skills.ts` | Finds the bundled skills: `skills/` in the preview repo, the plugin sources in synclayer |
+| `src/skills.ts` | Points pi at the `skills/` folder |
 | `src/rpc.ts` | HTTP calls and the error rules |
 | `src/api.ts` | The typed API and daemon routes |
 | `src/login.ts` | Device login and org choice |

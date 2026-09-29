@@ -32,6 +32,8 @@ pi
 /humanlayer status     # shows the session's web app link
 ```
 
+**Note:** if you use the HumanLayer beta environment, sign in with `/humanlayer login beta`. pi remembers it for later sessions.
+
 To update, run `pi update --extensions`. To remove, run `pi remove` with the source you installed, such as `pi remove git:git@github.com:humanlayer/humanlayer-pi`.
 
 The rest of this file is reference.

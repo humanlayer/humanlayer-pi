@@ -1,3 +1,5 @@
+import { createHumanlayerSettings } from "./settings.js";
+
 // packages/session-sdk-auth/src/client.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { join } from "node:path";
@@ -1602,6 +1604,7 @@ async function resolveChannel() {
 function isDisabled() {
   return process.env.HUMANLAYER_PI_DISABLE === "1";
 }
+const humanlayerSettings = createHumanlayerSettings({ withFileLock, writeJsonFileAtomic });
 function codingAgent() {
   return process.env.HUMANLAYER_PI_CODING_AGENT || "pi";
 }
@@ -2995,7 +2998,9 @@ class Mirror {
     this.timer.unref();
   }
   static async start(ctx, flag, opts = {}, driver) {
-    const m = new Mirror(ctx, await resolveChannel(), flag, opts, driver);
+    const [channel, settings] = await Promise.all([resolveChannel(), humanlayerSettings.load()]);
+    const m = new Mirror(ctx, channel, flag, opts, driver);
+    m.off = settings.defaultMirroring === "off";
     await m.authChanged().catch((err) => log(`start: ${errorMessage(err)}`));
     return m;
   }
@@ -3558,7 +3563,7 @@ function namesCodingAgent(err) {
 var { abortLogin, logout, pendingLogin, startDeviceLogin } = login2;
 
 // apps/riptide-pi-extension/src/command.ts
-var SUBCOMMANDS = ["login", "logout", "status", "open-session", "attach", "off", "on"];
+var SUBCOMMANDS = ["login", "logout", "status", "open-session", "attach", "off", "on", "default"];
 var LOGIN_WIDGET = "humanlayer-login";
 var live2;
 var liveUI = () => live2?.alive ? live2.ui : undefined;
@@ -3658,7 +3663,8 @@ async function handleLogout(instance, ctx) {
 async function handleStatus(instance, ctx) {
   const channel = await resolveChannel();
   const id = await identity(channel);
-  const lines = [`channel: ${channel}`];
+  const settings = await humanlayerSettings.load();
+  const lines = [`channel: ${channel}`, ...humanlayerSettings.statusLines(settings)];
   if (!id) {
     lines.push("user: not signed in");
     lines.push("auth: none. Run /humanlayer login.");
@@ -3721,18 +3727,26 @@ function createHumanlayerCommand(instance) {
           m.attach(arg);
           return arg === "new" ? "HumanLayer: the next prompt starts a new task" : `HumanLayer: the next prompt attaches to task ${arg}`;
         });
+      case "default":
+        if (parts.length > 2 || arg !== undefined && arg !== "on" && arg !== "off")
+          return output(ctx, "HumanLayer: usage: /humanlayer default [on|off]", "warning");
+        if (arg === undefined)
+          return output(ctx, `HumanLayer: ${humanlayerSettings.statusLines(await humanlayerSettings.load()).join("; ")}`);
+        await humanlayerSettings.save({ defaultMirroring: arg });
+        return output(ctx, `HumanLayer: default mirroring set to ${arg} for new sessions; this session is unchanged`);
       case "off":
-        return withMirror(instance, ctx, (m) => {
-          m.setOff();
-          return "HumanLayer: mirroring off for this session";
-        });
       case "on":
+        if (parts.length > 1)
+          return output(ctx, `HumanLayer: usage: /humanlayer ${sub}`, "warning");
         return withMirror(instance, ctx, (m) => {
-          m.setOn();
-          return "HumanLayer: mirroring on for this session";
+          if (sub === "off")
+            m.setOff();
+          else
+            m.setOn();
+          return `HumanLayer: mirroring ${sub} for this session`;
         });
       default:
-        output(ctx, `HumanLayer: unknown subcommand "${sub}". Try login, logout, status, open-session, attach, off or on.`, "warning");
+        output(ctx, `HumanLayer: unknown subcommand "${sub}". Try login, logout, status, open-session, attach, off, on or default.`, "warning");
     }
   };
 }
@@ -3744,7 +3758,11 @@ function humanlayerArgumentCompletions(argumentPrefix) {
   const [sub = "", channel, ...more] = argumentPrefix.split(" ");
   if (channel === undefined)
     return complete(SUBCOMMANDS, sub);
-  return sub === "login" && more.length === 0 ? complete(ALL_CHANNELS, channel, "login ") : null;
+  if (more.length > 0)
+    return null;
+  if (sub === "login")
+    return complete(ALL_CHANNELS, channel, "login ");
+  return sub === "default" ? complete(["on", "off"], channel, "default ") : null;
 }
 
 // apps/riptide-pi-extension/src/skills.ts
@@ -3810,7 +3828,7 @@ function createHumanlayer(opts = {}) {
       description: "HumanLayer task id or slug to attach this pi session to"
     });
     pi.registerCommand("humanlayer", {
-      description: "HumanLayer cloud mirroring: login, logout, status, attach, off, on",
+      description: "HumanLayer cloud mirroring: login, logout, status, attach, off, on, default",
       getArgumentCompletions: humanlayerArgumentCompletions,
       handler: createHumanlayerCommand(instance)
     });

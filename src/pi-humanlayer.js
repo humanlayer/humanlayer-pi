@@ -1,5 +1,3 @@
-import { createHumanlayerSettings } from "./settings.js";
-
 // packages/session-sdk-auth/src/client.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { join } from "node:path";
@@ -91,6 +89,7 @@ async function withFileLock(lockPath, fn) {
   for (;; ) {
     try {
       const handle = await open(lockPath, "wx", 384);
+      await handle.writeFile(String(process.pid));
       await handle.close();
       break;
     } catch (err) {
@@ -98,7 +97,7 @@ async function withFileLock(lockPath, fn) {
         throw err;
       const info = await stat(lockPath).catch(() => null);
       const age = Date.now() - (info?.mtimeMs ?? Date.now());
-      if (age > LOCK_STALE_MS)
+      if (age > LOCK_STALE_MS || await holderGone(lockPath))
         await unlink(lockPath).catch(() => {});
       else if (Date.now() - start > LOCK_TIMEOUT_MS)
         throw new Error(`HumanLayer: lock timed out: ${lockPath}`);
@@ -110,6 +109,17 @@ async function withFileLock(lockPath, fn) {
     return await fn();
   } finally {
     await unlink(lockPath).catch(() => {});
+  }
+}
+async function holderGone(lockPath) {
+  const pid = Number.parseInt(await readFile(lockPath, "utf8").catch(() => ""), 10);
+  if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid)
+    return false;
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (err) {
+    return err.code === "ESRCH";
   }
 }
 function decodeJwtPayload(jwt) {
@@ -1604,7 +1614,6 @@ async function resolveChannel() {
 function isDisabled() {
   return process.env.HUMANLAYER_PI_DISABLE === "1";
 }
-const humanlayerSettings = createHumanlayerSettings({ withFileLock, writeJsonFileAtomic });
 function codingAgent() {
   return process.env.HUMANLAYER_PI_CODING_AGENT || "pi";
 }
@@ -2883,6 +2892,49 @@ function resolveToCwd(filePath, cwd) {
   return isAbsolute2(normalized) ? resolve3(normalized) : resolve3(normalizePath(cwd, false), normalized);
 }
 
+// apps/riptide-pi-extension/src/settings.ts
+import { readFile as readFile4 } from "node:fs/promises";
+import { join as join8 } from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+var isMirroring = (value) => value === "on" || value === "off";
+var settingsFilePath = () => join8(getAgentDir(), "settings.json");
+async function readSettingsDocument() {
+  let text2;
+  try {
+    text2 = await readFile4(settingsFilePath(), "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT")
+      return {};
+    throw err;
+  }
+  const document = JSON.parse(text2);
+  if (!document || typeof document !== "object" || Array.isArray(document))
+    throw new Error("Pi settings.json must contain an object");
+  const settings = document.humanlayer;
+  if (settings !== undefined) {
+    if (!settings || typeof settings !== "object" || Array.isArray(settings))
+      throw new Error("Pi settings.json humanlayer must contain an object");
+    const mirroring = settings.defaultMirroring;
+    if (mirroring !== undefined && !isMirroring(mirroring))
+      throw new Error("humanlayer.defaultMirroring must be on or off");
+  }
+  return document;
+}
+async function loadSettings() {
+  const document = await readSettingsDocument();
+  const settings = document.humanlayer;
+  return { defaultMirroring: settings?.defaultMirroring ?? "on" };
+}
+async function saveSettings(settings) {
+  const file = settingsFilePath();
+  await withFileLock(`${file}.humanlayer.lock`, async () => {
+    const document = await readSettingsDocument();
+    document.humanlayer = { ...document.humanlayer, ...settings };
+    await writeJsonFileAtomic(file, document);
+  });
+}
+var settingsStatusLine = (settings) => `default mirroring: ${settings.defaultMirroring}`;
+
 // apps/riptide-pi-extension/src/status.ts
 function statusLine(s) {
   if (!s.signedIn)
@@ -2998,9 +3050,9 @@ class Mirror {
     this.timer.unref();
   }
   static async start(ctx, flag, opts = {}, driver) {
-    const [channel, settings] = await Promise.all([resolveChannel(), humanlayerSettings.load()]);
+    const [channel, mirroring] = await Promise.all([resolveChannel(), defaultMirroring()]);
     const m = new Mirror(ctx, channel, flag, opts, driver);
-    m.off = settings.defaultMirroring === "off";
+    m.off = mirroring === "off";
     await m.authChanged().catch((err) => log(`start: ${errorMessage(err)}`));
     return m;
   }
@@ -3555,6 +3607,14 @@ ${text2}
     await this.lanes.flush(end);
   }
 }
+async function defaultMirroring() {
+  try {
+    return (await loadSettings()).defaultMirroring;
+  } catch (err) {
+    log(`settings: ${errorMessage(err)}; this session starts off`);
+    return "off";
+  }
+}
 function namesCodingAgent(err) {
   return /codingAgent/.test(`${err.message} ${JSON.stringify(err.data ?? null)}`);
 }
@@ -3663,8 +3723,7 @@ async function handleLogout(instance, ctx) {
 async function handleStatus(instance, ctx) {
   const channel = await resolveChannel();
   const id = await identity(channel);
-  const settings = await humanlayerSettings.load();
-  const lines = [`channel: ${channel}`, ...humanlayerSettings.statusLines(settings)];
+  const lines = [`channel: ${channel}`, await settingsLine()];
   if (!id) {
     lines.push("user: not signed in");
     lines.push("auth: none. Run /humanlayer login.");
@@ -3690,6 +3749,26 @@ async function handleStatus(instance, ctx) {
   output(ctx, `HumanLayer status
 ${lines.map((line) => `  ${line}`).join(`
 `)}`);
+}
+async function settingsLine() {
+  try {
+    return settingsStatusLine(await loadSettings());
+  } catch (err) {
+    return `default mirroring: unreadable (${errorMessage(err)}); new sessions start off`;
+  }
+}
+async function handleDefault(parts, ctx) {
+  const [, arg] = parts;
+  if (parts.length > 2 || arg !== undefined && !isMirroring(arg))
+    return output(ctx, "HumanLayer: usage: /humanlayer default [on|off]", "warning");
+  if (arg === undefined)
+    return output(ctx, `HumanLayer: ${await settingsLine()}`);
+  try {
+    await saveSettings({ defaultMirroring: arg });
+  } catch (err) {
+    return output(ctx, `HumanLayer: could not save the default: ${errorMessage(err)}`, "error");
+  }
+  output(ctx, `HumanLayer: default mirroring set to ${arg} for new sessions; this session is unchanged`);
 }
 function withMirror(instance, ctx, act) {
   const m = instance.mirror;
@@ -3727,13 +3806,6 @@ function createHumanlayerCommand(instance) {
           m.attach(arg);
           return arg === "new" ? "HumanLayer: the next prompt starts a new task" : `HumanLayer: the next prompt attaches to task ${arg}`;
         });
-      case "default":
-        if (parts.length > 2 || arg !== undefined && arg !== "on" && arg !== "off")
-          return output(ctx, "HumanLayer: usage: /humanlayer default [on|off]", "warning");
-        if (arg === undefined)
-          return output(ctx, `HumanLayer: ${humanlayerSettings.statusLines(await humanlayerSettings.load()).join("; ")}`);
-        await humanlayerSettings.save({ defaultMirroring: arg });
-        return output(ctx, `HumanLayer: default mirroring set to ${arg} for new sessions; this session is unchanged`);
       case "off":
       case "on":
         if (parts.length > 1)
@@ -3745,6 +3817,8 @@ function createHumanlayerCommand(instance) {
             m.setOn();
           return `HumanLayer: mirroring ${sub} for this session`;
         });
+      case "default":
+        return handleDefault(parts, ctx);
       default:
         output(ctx, `HumanLayer: unknown subcommand "${sub}". Try login, logout, status, open-session, attach, off, on or default.`, "warning");
     }

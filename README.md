@@ -110,17 +110,20 @@ Start pi in a git repo and send a prompt. The first prompt binds the session: th
 | `/humanlayer attach new`               | The same, but the next prompt makes a new task                                                                      |
 | `/humanlayer off`                      | Stops sending for this session and marks the cloud session ready for input                                          |
 | `/humanlayer on`                       | Sends again from the next entry; also clears a stop and resends what it had not sent                                |
-| `/humanlayer default [on\|off]`         | Shows or saves the default for future sessions without changing this session                                         |
+| `/humanlayer default [on\|off]`        | Shows or saves whether new sessions mirror; this session keeps its state                                            |
 
-`attach` also turns mirroring back on. The separate `default` command configures future sessions without changing this session:
+`attach` also turns mirroring back on. `off` before the first prompt lives in memory only, so `/reload` or a restart goes back to the default; once bound, the binding file keeps it.
+
+New sessions mirror unless you save `/humanlayer default off`. The default goes in pi's `settings.json` (in `~/.pi/agent`, or `PI_CODING_AGENT_DIR`) as `"humanlayer": { "defaultMirroring": "off" }`. It never changes the current session, and a bound session keeps its own saved state when resumed. If that section can't be read, new sessions start off and `/humanlayer status` says why.
 
 ```text
-/humanlayer default off  # future sessions start off
-/humanlayer off          # turn off this session too
-/humanlayer on           # opt in for this session only
-/humanlayer default on   # future sessions start on again
+/humanlayer default off  # new sessions start off
+/humanlayer on           # mirror this session anyway
+/humanlayer default on   # new sessions mirror again
 /humanlayer default      # show the saved default
 ```
+
+With `HUMANLAYER_PI_DISABLE=1`, `status`, `login` and `logout` still work, while `attach`, `off` and `on` say mirroring is disabled.
 
 ### Which task
 
@@ -169,15 +172,15 @@ A write or edit sends its file; the bind, each bash run and exit scan the whole 
 
 Each pi session has its own binding, keyed by pi's session id.
 
-| In pi                       | What happens                                                                                                                                                     |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/reload`                   | The old instance sends what is queued; the new one picks up the same binding                                                                                     |
-| `/new`                      | The old session sends what is queued; the new one uses the configured default and binds at its first prompt while on                                                                                      |
-| `/resume`, `pi -c`, `pi -r` | A bound session (same channel and login) picks up its cloud session and sends what it had not sent. An unbound one binds at its next prompt, without its history |
-| `/fork`, `/clone`           | A new pi session: it uses the configured default and binds at its first prompt while on without the copied history, and sends a hidden `pi_fork` event naming the parent's session file                   |
-| `/tree`                     | New branches go up in time order, with branch summaries as hidden events; the cloud has no tree view                                                             |
+| In pi                       | What happens                                                                                                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/reload`                   | The old instance sends what is queued; the new one picks up the same binding                                                                                            |
+| `/new`                      | The old session sends what is queued; the new one follows the default and, if on, binds at its first prompt                                                             |
+| `/resume`, `pi -c`, `pi -r` | A bound session (same channel and login) picks up its cloud session and sends what it had not sent. An unbound one binds at its next prompt, without its history        |
+| `/fork`, `/clone`           | A new pi session that follows the default: it binds at its first prompt without the copied history, and sends a hidden `pi_fork` event naming the parent's session file |
+| `/tree`                     | New branches go up in time order, with branch summaries as hidden events; the cloud has no tree view                                                                    |
 
-In print mode (`pi -p`) there is no footer; notices go to stderr. Each `pi -p` run is a new pi session and uses the configured default. With default-off, send a `/humanlayer on` command before the prompt to opt in. Add `-c` to continue the last session and its saved mirroring state.
+In print mode (`pi -p`) there is no footer; notices go to stderr. Each `pi -p` run is a new pi session that follows the default and picks its task as above; with the default off, run `pi -p "/humanlayer on" "<prompt>"` to mirror it. Add `-c` to continue the last session and its cloud session.
 
 **Exit.** When pi emits `session_shutdown`, the extension marks a run still going as interrupted, sends the queue, the task files and the diff for up to `HUMANLAYER_PI_FLUSH_MS` (5 s), then saves its place. Waiting briefly for a killed tool's result shares that same budget. Quitting or switching sessions can take about 5 s longer on a slow network. pi (0.87.1 and 1.0.0) emits shutdown on `/quit`, Ctrl+D in an empty editor, Ctrl+C twice in the TUI, the end of a print run, `/reload`, a session switch, SIGTERM and SIGHUP (closing the terminal window).
 
@@ -201,8 +204,6 @@ In print and JSON modes, this extension also handles SIGINT (Ctrl+C) while mirro
 - **Size caps.** Each session queues at most 5000 items or 50 MB, then drops the oldest events (never status updates). The extension cuts event text at 1 MB and hidden events at 256 KB. The diff lists files with patches over 8 MiB but leaves out the patch.
 
 ## Develop
-
-This fork adds a persistent local default mirroring preference to the published bundle. Run `bun run test` here for the bundled default-off regression tests; they use temporary local state and capture outgoing jobs without contacting HumanLayer. The original TypeScript sources and their full test suite are in the source repository described below. Replacing the bundle with an upstream build will remove this fork's change unless it is also applied there.
 
 The source lives in `apps/riptide-pi-extension` in `humanlayer/synclayer`. `humanlayer/humanlayer-pi` holds a build of it for installs (`scripts/build.ts`, published as `DISTRIBUTING.md` there says), so the commands below need the source. `/path/to/pi-humanlayer` means that folder.
 
@@ -287,11 +288,10 @@ pi install /path/to/pi-humanlayer
 HUMANLAYER_CHANNEL=dev pi
 # in pi:
 /humanlayer login dev      # approve in the browser
-/humanlayer on             # enable this session if your saved default is off
 Create hello.txt with "hi", then reply done.
 /humanlayer status         # open the session URL
 ```
 
 The web app should show the prompt, the write call and the reply, with the session ending ready for input. The task's diff should list `hello.txt` as added.
 
-The login saves `dev` as the default channel, so enabled sessions mirror to dev, even without `HUMANLAYER_CHANNEL`. New sessions, including headless runs (`pi -p`), use the saved default mirroring preference (on if unset). `/humanlayer login prod` moves the default back; `/humanlayer logout` or `pi remove /path/to/pi-humanlayer` stops mirroring.
+The login saves `dev` as the default channel, so from then on every pi session that mirrors goes to dev, headless runs (`pi -p`) included, even without `HUMANLAYER_CHANNEL`. `/humanlayer login prod` moves the default back; `/humanlayer logout` or `pi remove /path/to/pi-humanlayer` stops mirroring.

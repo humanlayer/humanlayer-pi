@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"description": "Mirror pi coding agent sessions, artifacts and diffs to HumanLayer",
 	"type": "module",
+	"scripts": {
+		"test": "node --experimental-vm-modules --test test/*.test.js"
+	},
 	"keywords": [
 		"pi-package"
 	],

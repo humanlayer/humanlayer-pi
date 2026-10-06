@@ -1,5 +1,7 @@
 # pi-humanlayer
 
+:warning: NOTE - this plugin is in alpha - thanks for checking it out. If you have feedback or find issues, you can file them here or start a thread at https://hlyr.dev/discord
+
 pi-humanlayer is a [pi](https://github.com/earendil-works/pi) extension that mirrors your pi sessions to HumanLayer, where you can read them in the web app. At a session's first prompt it creates or joins a HumanLayer task and starts a cloud session in it. From then on it sends each entry pi saves, the files the model writes to the task folder, and the repo's diff. It runs inside pi with no daemon. Messages and the stop button in the web app reach pi, and the model gets HumanLayer's comment tools and skills.
 
 ## Install
